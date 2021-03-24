@@ -287,6 +287,9 @@ async def display_gear(gear, message):
         description += item[1]
       else:
         description += item[0] + ' ' + item[1] + '\n'
+    # Add link to wiki page
+    base_url = "https://azurlane.koumakan.jp/" 
+    description += f"\n[Page Link]({base_url + gear.replace(' ','_') + '#Type_3'})"
     embed = make_embed(gear, description, results, image_url)
 
     await message.channel.send(embed=embed)  
@@ -440,7 +443,6 @@ def get_gear(gear):
   misc_page = misc[-1]
   misc_data = misc_page.find_all('tr')
   extracted_misc = []
-  # TODO: find hrefs and embed links
   for row in misc_data[1:]:
     cell_header = row.find('th')
     if cell_header:
@@ -448,6 +450,21 @@ def get_gear(gear):
     else:
       continue
     data = row.find('td').get_text()
+    hrefs = row.find('td').find_all('a')
+    link = None
+    base_url = "https://azurlane.koumakan.jp" 
+    print("hrefs:", hrefs)
+    if hrefs:
+      # Embed links in data text
+      for href in hrefs:
+        link = href.get('href')
+        text = href.get_text()
+        if text:
+          print(f"text '{text}'")
+          # Find if text is duplicated in the data, if so remove all but the first example
+          substring_idx = data.find(text) + len(text)
+          data = data[:substring_idx] + data[substring_idx:].replace(text, '')
+          data = data.replace(text, f"[{text}]({base_url + link})")
 
     extracted_misc.append((title,data))
     print(title, data)
