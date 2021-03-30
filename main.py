@@ -5,6 +5,7 @@ import re
 import bs4 as bs
 import difflib
 import traceback
+import itertools
 from caffeinate import caffeinate
 from time import perf_counter
 
@@ -66,7 +67,7 @@ aa_url = "https://azurlane.koumakan.jp/List_of_AA_Guns"
 asw_url = "https://azurlane.koumakan.jp/List_of_ASW_Equipment"
 
 # Get aux gear
-aux_gear_list = init_gear_list(aux_url)
+aux_gear_list = init_gear_list(aux_url) + ["Pressure-Resistant Hull Design"]
 aux_gear_list += init_gear_list(asw_url)
 
 # Get guns
@@ -141,6 +142,7 @@ common_nicknames = {
   # Planes
   ("helldiver",):"Curtiss SB2C Helldiver",
   ("reppuu",):"Mitsubishi A7M Reppuu",
+  ("Ryuusei",):"Aichi B7A Ryuusei",
 
   # AA guns
   ("STAAG",):"Twin 40mm Bofors STAAG Mk II",
@@ -171,6 +173,8 @@ common_nicknames = unwrap_nicknames(common_nicknames)
 # Stores information related to ongoing user queries
 query_timeout = 60
 active_queries = {}
+valid_flags = {'-a', '--any'}
+flag_map = {'--any':'-a'}
 
 client = discord.Client()
 
@@ -187,6 +191,15 @@ async def on_message(message):
   split_msg = msg.split(' ')
   command = split_msg[0].lower()
   contents = split_msg[1:]
+  flags = set()
+  for index, item in enumerate(contents):
+    if item in valid_flags:
+      # Remove flag from message contents, add to flag set
+      del contents[index]
+      if item in flag_map:
+        # Map long form flags to short form
+        item = flag_map[item]
+      flags.add(item)
   # Convert underscore separated text to title case except for numbers
   #parsed_contents = ['_'.join([y.title() if not y[0].isdigit() else y for y in x.replace('_', ' ').split()]) for x in contents]
   parsed_contents = ' '.join(contents)
@@ -202,13 +215,15 @@ async def on_message(message):
     exact_match = True
 
     print(f"Replaced alias {' '.join(contents)} with {parsed_contents}.")
-  except Exception:
-    traceback.print_exc()
-    pass
+  except Exception as ex:
+    if ex == IndexError:
+      print("Couldn't find a common nickname")
+    else:
+      traceback.print_exc()
   if command == "!info" or command == "!help":
     print("Asked for info!")
     title = "How can I help?"
-    description =  "Please use one of the following commands:\n> `!stats <ship_name>`\n> `!skills <ship_name>`\n> `!aux <gear>`\n> `!gun <gear>`\n> `!plane <gear>`\n> `!torp <gear>`\n> `!aa <gear>`"
+    description =  "Please use one of the following commands:\n> `!stats <ship_name>`\n> `!skills <ship_name>`\n> `!aux <gear> <flags>`\n> `!gun <gear> <flags>`\n> `!plane <gear> <flags>`\n> `!torp <gear> <flags>`\n> `!aa <gear> <flags>`\n\nValid flags:\n> `-a`, `--any`\nExpands the search. Useful if you don't know the exact name of the equipment, or if your search 404s."
     embed = make_embed(title, description, fields=None, image=None, thumbnail=query_thumbnail)
     await message.channel.send(embed=embed)
     #await message.channel.send("What info do you want?\nUse !stats <ship_name>, !skills <ship_name>, !aux <gear>, !gun <gear>, !plane <gear>, !torp <gear>, or !aa <gear>")
@@ -241,13 +256,13 @@ async def on_message(message):
   elif command == "!aux":
     await execute_aux(message, parsed_contents)
   elif command == "!gun":
-    await execute_gun(message, parsed_contents, contents, exact_match)
+    await execute_gun(message, parsed_contents, contents, exact_match, flags)
   elif command == "!plane":
-    await execute_plane(message, parsed_contents, contents, exact_match)
+    await execute_plane(message, parsed_contents, contents, exact_match, flags)
   elif command == "!torp":
-    await execute_torp(message, parsed_contents, contents, exact_match)
+    await execute_torp(message, parsed_contents, contents, exact_match, flags)
   elif command == "!aa" or command == "!aagun":
-    await execute_aa(message, parsed_contents, contents, exact_match)
+    await execute_aa(message, parsed_contents, contents, exact_match, flags)
   elif command == "!p":
     await return_query(message, contents)
   elif msg.startswith("!"):
@@ -271,40 +286,43 @@ async def execute_aux(message, parsed_contents):
   print(f"Found closest match to '{parsed_contents}' '{gear}'")
   await display_gear(gear, message)
 
-async def execute_gun(message, parsed_contents, contents, exact_match=False):
+async def execute_gun(message, parsed_contents, contents, exact_match=False, flags=None):
   if parsed_contents.strip() == "":
     await message.channel.send("Please enter an gun to serach for.\n> !gun <name>")
     return
 
   print("Asked for gun")
-  await general_query_execute(parsed_contents, gun_list, gun_info, message, contents, exact_match, match_cutoff=.65)
+  await general_query_execute(parsed_contents, gun_list, gun_info, message, contents, exact_match, match_cutoff=.6, flags=flags)
 
-async def execute_plane(message, parsed_contents, contents, exact_match=False):
+async def execute_plane(message, parsed_contents, contents, exact_match=False, flags=None):
   if parsed_contents.strip() == "":
     await message.channel.send("Please enter a plane to serach for.\n> !plane <name>")
     return
 
   print("Asked for plane")
-  await general_query_execute(parsed_contents, plane_list, plane_info, message, contents, exact_match, match_cutoff=.4)
+  await general_query_execute(parsed_contents, plane_list, plane_info, message, contents, exact_match, match_cutoff=.4, flags=flags)
 
-async def execute_torp(message, parsed_contents, contents, exact_match=False):
+async def execute_torp(message, parsed_contents, contents, exact_match=False, flags=None):
   if parsed_contents.strip() == "":
     await message.channel.send("Please enter a torpedo to serach for.\n> !torp <name>")
     return
 
   print("Asked for torp")
 
-  await general_query_execute(parsed_contents, torp_list, torp_info, message, contents, exact_match, match_cutoff=.45, splitter='Torpedo')
+  await general_query_execute(parsed_contents, torp_list, torp_info, message, contents, exact_match, match_cutoff=.45, splitter='Torpedo', flags=flags)
 
-async def execute_aa(message, parsed_contents, contents, exact_match=False):
+async def execute_aa(message, parsed_contents, contents, exact_match=False, flags=None):
   if parsed_contents.strip() == "":
     await message.channel.send("Please enter an aa gun to serach for.\n> !aa <name>")
     return
 
   print("Asked for aa gun")
-  await general_query_execute(parsed_contents, aa_list, aa_info, message, contents, exact_match, match_cutoff=.45)
+  await general_query_execute(parsed_contents, aa_list, aa_info, message, contents, exact_match, match_cutoff=.45, flags=flags)
 
-async def general_query_execute(parsed_contents, gear_list, gear_info, message, contents, exact_match, match_cutoff=.6, splitter='('):
+async def general_query_execute(parsed_contents, gear_list, gear_info, message, contents, exact_match, match_cutoff=.6, splitter='(', flags=None):
+  if flags:
+    if '-a' in flags:
+      match_cutoff = 0.05
   try:
     if exact_match:
       # If we found a match based on common aliases
@@ -317,8 +335,30 @@ async def general_query_execute(parsed_contents, gear_list, gear_info, message, 
       gear = difflib.get_close_matches(parsed_contents, gear_list_mod, 10, cutoff=match_cutoff)
       # Find actual names from gear list
       gear = [gear_list[int(item.split('•')[-1])] for item in gear]
+      if len(gear) == 0:
+        # Try again with different permutations
+        split_input = parsed_contents.split()
+        permutations = list(itertools.permutations(split_input))
+        permutations = [' '.join(list(x)) for x in permutations]
+        #permutations = ' '.join(permutations)
+        for permutation in permutations:
+          if permutation == parsed_contents:
+            continue
+          print("Trying permutation", permutation)
+          gear = difflib.get_close_matches(permutation, gear_list_mod, 10, cutoff=match_cutoff)
+          if len(gear) == 0:
+            # No matches
+            continue
+          else:
+            # Found a match,
+            # Find actual names from gear list
+            gear = [gear_list[int(item.split('•')[-1])] for item in gear]
+            break
   except:
-    await message.channel.send("Error 404: Gear not found! Try a more detailed query.")
+    import traceback
+    print("Exception")
+    traceback.print_exc()
+    await message.channel.send("Error 1: Query failed, unhandled exception. <@135173821358407680>")
     return
   if len(gear) == 0:
     await message.channel.send("Error 404: Gear not found! Try a more detailed query.")
