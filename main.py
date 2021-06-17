@@ -650,6 +650,7 @@ class fake_message:
 @slash_hander.slash(name="help")
 async def _help(ctx: SlashContext):
     print("Help slash command")
+    await ctx.send("Please wait...")
     message = fake_message(ctx)
     await execute_help(message)
 
