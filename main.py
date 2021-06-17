@@ -8,6 +8,7 @@ import traceback
 import itertools
 from caffeinate import caffeinate
 from time import perf_counter
+from discord_slash import SlashCommand, SlashContext
 
 def init_gear_list(url, store_info = False, faction_only = False):
   response = requests.get(url)
@@ -171,12 +172,33 @@ def unwrap_nicknames(input_dict):
 common_nicknames = unwrap_nicknames(common_nicknames)
 
 # Stores information related to ongoing user queries
-query_timeout = 60
+query_timeout = 600
 active_queries = {}
 valid_flags = {'-a', '--any'}
 flag_map = {'--any':'-a'}
 
 client = discord.Client()
+slash_hander = SlashCommand(client)
+
+def find_exact_match(parsed_contents):
+  old = parsed_contents
+  # Check if the user input is in common nicknames
+  exact_match = False
+  try:
+    # Attempt to determine if the user input is a common alias, or something similar to one
+    keys = common_nicknames.keys()
+    most_similar_key = difflib.get_close_matches(parsed_contents.lower(), keys, 1, cutoff=0.8)[0]
+    parsed_contents = common_nicknames[most_similar_key]
+    #parsed_contents = next(value in common_nicknames.items() if len(difflib.get_close_matches(parsed_contents.lower(), keys, 1, cutoff=0.8)) > 0)
+    exact_match = True
+
+    print(f"Replaced alias {' '.join(old)} with {parsed_contents}.")
+  except Exception as ex:
+    if ex == IndexError:
+      print("Couldn't find a common nickname")
+    else:
+      traceback.print_exc()
+  return exact_match
 
 @client.event
 async def on_ready():
@@ -205,21 +227,8 @@ async def on_message(message):
   parsed_contents = ' '.join(contents)
   print("\nReceived a message!")
   print(f'"{command}, {parsed_contents}"')
-  exact_match = False
-  try:
-    # Attempt to determine if the user input is a common alias, or something similar to one
-    keys = common_nicknames.keys()
-    most_similar_key = difflib.get_close_matches(parsed_contents.lower(), keys, 1, cutoff=0.8)[0]
-    parsed_contents = common_nicknames[most_similar_key]
-    #parsed_contents = next(value in common_nicknames.items() if len(difflib.get_close_matches(parsed_contents.lower(), keys, 1, cutoff=0.8)) > 0)
-    exact_match = True
+  exact_match = find_exact_match(parsed_contents)
 
-    print(f"Replaced alias {' '.join(contents)} with {parsed_contents}.")
-  except Exception as ex:
-    if ex == IndexError:
-      print("Couldn't find a common nickname")
-    else:
-      traceback.print_exc()
   if command == "!info" or command == "!help":
     print("Asked for info!")
     title = "How can I help?"
@@ -233,26 +242,12 @@ async def on_message(message):
       print("No ship listed...")
       await message.channel.send("What stats do you want?\n")
       return
-    ship = msg.split("!stats ")[1]
-    stats = get_stats(ship)
-    if stats is None:
-      await message.channel.send("Error 404: Shipfu not found!")
-    else:
-      results = ["Here are the stats for {0} at level 120 and 100 affinity (with retrofit if applicable):\n\n".format(ship)]
-      for stat in stats:
-        results.append(stat[0] + ": " + stat[1] + "\n")
-      await message.channel.send("".join(results))
+
+    await execute_stats(message, msg)
   elif msg.startswith("!skills "):
     print("Asked for skills")
-    ship = msg.split("!skills ")[1]
-    skills = get_skills(ship)
-    if skills is None:
-      await message.channel.send("Error 404: Shipfu not found!")
-    else:
-      results = ["Here are the skills for {0}:\n\n".format(ship)]
-      for skill in skills:
-        results.append(skill[0] + ": " + skill[1] + "\n\n")
-      await message.channel.send("".join(results))
+
+    await execute_skills(message, msg)
   elif command == "!aux":
     await execute_aux(message, parsed_contents)
   elif command == "!gun":
@@ -265,12 +260,46 @@ async def on_message(message):
     await execute_aa(message, parsed_contents, contents, exact_match, flags)
   elif command == "!p":
     await return_query(message, contents)
+  elif msg.startswith("!bonk") or msg.startswith("!BONK") or msg.startswith("!Bonk"):
+    print("Go to horny jail. Bonk!")
+    await message.channel.send("Go to horny jail. Bonk!\n", file=discord.File('./bonk.png'))
+  elif msg.startswith("!sandy") or msg.startswith("!Sandy") or msg.startswith("!AAAAAAAAA") or msg.startswith("![AAAAAAAAA]"):
+    print("[AAAAAAAAA]")
+    await message.channel.send("Watashi wa Numbah Wan!!\n", file=discord.File('./sandy.gif'))
+  elif msg.startswith("!idiot"):
+    print("Idiot!")
+    await message.channel.send("Watashi wa Numbah Wan!!\n", file=discord.File('./idiot.png'))
+  elif msg.startswith("!good bot"):
+    print("*Happiness noises*")
+    await message.channel.send("You're very welcome, shikikan-sama~")
   elif msg.startswith("!"):
     print("Message was not a valid command")
     await message.channel.send("Invalid command!\n")
   else:
     print("Message was not a command")
     return
+
+async def execute_stats(message, msg):
+  ship = msg.split("!stats ")[1]
+  stats = get_stats(ship)
+  if stats is None:
+    await message.channel.send("Error 404: Shipfu not found!")
+  else:
+    results = ["Here are the stats for {0} at level 120 and 100 affinity (with retrofit if applicable):\n\n".format(ship)]
+    for stat in stats:
+      results.append(stat[0] + ": " + stat[1] + "\n")
+    await message.channel.send("".join(results))
+
+async def execute_skills(message, msg):
+  ship = msg.split("!skills ")[1]
+  skills = get_skills(ship)
+  if skills is None:
+    await message.channel.send("Error 404: Shipfu not found!")
+  else:
+    results = ["Here are the skills for {0}:\n\n".format(ship)]
+    for skill in skills:
+      results.append(skill[0] + ": " + skill[1] + "\n\n")
+    await message.channel.send("".join(results))
 
 async def execute_aux(message, parsed_contents):
   if parsed_contents.strip() == "":
@@ -319,7 +348,7 @@ async def execute_aa(message, parsed_contents, contents, exact_match=False, flag
   print("Asked for aa gun")
   await general_query_execute(parsed_contents, aa_list, aa_info, message, contents, exact_match, match_cutoff=.45, flags=flags)
 
-async def general_query_execute(parsed_contents, gear_list, gear_info, message, contents, exact_match, match_cutoff=.6, splitter='(', flags=None):
+async def general_query_execute(parsed_contents, gear_list, gear_info, message, contents, exact_match, match_cutoff=.6, splitter='(', flags=None, retry=False):
   if flags:
     if '-a' in flags:
       match_cutoff = 0.05
@@ -361,7 +390,13 @@ async def general_query_execute(parsed_contents, gear_list, gear_info, message, 
     await message.channel.send("Error 1: Query failed, unhandled exception. <@135173821358407680>")
     return
   if len(gear) == 0:
-    await message.channel.send("Error 404: Gear not found! Try a more detailed query.")
+    if '-a' in flags:
+      await message.channel.send("Error 404: Gear not found! Try a more detailed query.")
+    else:
+      # If we didn't find any gear but the '-a' flag was not used to make the search less strict
+      new_flags = flags
+      new_flags.add('-a')
+      await general_query_execute(parsed_contents, gear_list, gear_info, message, contents, exact_match, match_cutoff=.6, splitter='(', flags=new_flags, retry=True)
   elif len(gear) == 1:
     # If we resolved the request to a single piece of equipment, display it
     gear = gear[0]
@@ -370,7 +405,7 @@ async def general_query_execute(parsed_contents, gear_list, gear_info, message, 
   else:
     # Found multiple potential matches to the request, prompt the user for more information
     print(f"Found close matches to '{parsed_contents}' '{gear}'")
-    await user_gear_query(gear, gear_info, message, contents)
+    await user_gear_query(gear, gear_info, message, contents, initial_failed=retry)
 
     
 async def display_gear(gear, message):
@@ -400,10 +435,12 @@ async def display_gear(gear, message):
 
     await message.channel.send(embed=embed)  
 
-async def user_gear_query(gear, info, message, contents):
+async def user_gear_query(gear, info, message, contents, initial_failed=False):
   # Display options availible for the user to pick from
   title = f"Search for '{' '.join(contents)}'"
   description = "I've found multiple results related to your query.\nPlease choose one from the list below with `!p <#>`"
+  if initial_failed:
+    description = f"The initial search for '{' '.join(contents)}' failed so I expanded the search automatically.\nPlease choose one from the list below with `!p <#>`\n\n**If none of these are what you are looking for, please retry with a more detailed query.**"
   titles = [str(x[0]) + ' - ' + x[1] for x in enumerate(gear, 1)]
   subtitles = []
   for item in gear:
@@ -593,3 +630,70 @@ def get_gear(gear):
 
 caffeinate()
 client.run(os.getenv("TOKEN"))
+
+
+
+
+
+
+
+
+
+"""
+Function calls for slash commands
+"""
+
+@slash_hander.slash(name="aaaaaaaaa")
+async def _aaa(ctx: SlashContext):
+    print("AAAAAAA slash command")
+    await ctx.send("Watashi wa Numbah Wan!!\n", file=discord.File('./sandy.gif'))
+'''
+@slash_hander.slash(name="bonk")
+async def _bonk(ctx: SlashContext):
+    print("Bonk slash command")
+    await ctx.send("Go to horny jail. Bonk!\n", file=discord.File('./bonk.png'))
+
+@slash_hander.slash(name="idiot")
+async def _idiot(ctx: SlashContext):
+    print("Idiot slash command")
+    await ctx.send("Watashi wa Numbah Wan!!\n", file=discord.File('./idiot.png'))
+
+@slash_hander.slash(name="stats")
+async def _stats(ctx: SlashContext):
+    print("Stats slash command")
+    message = ctx.message
+    msg = message.content
+
+    await execute_stats(message, msg)
+
+@slash_hander.slash(name="skills")
+async def _skills(ctx: SlashContext):
+    print("Skills slash command")
+    message = ctx.message
+    msg = message.content
+    
+    await execute_skills(message, msg)
+
+@slash_hander.slash(name="gear")
+async def _gear(ctx: SlashContext):
+    print("Gear slash command")
+    message = ctx.message
+    args = ctx.kwargs
+    search_type = args['type']
+    gear = args['name']
+    flags = { args['flags'] } 
+    exact_match = find_exact_match(gear)
+
+    if search_type == 'aux':
+      await execute_aux(message, gear)
+    elif search_type == 'gun':
+      await general_query_execute(gear, gun_list, gun_info, message, gear, exact_match, match_cutoff=.6, flags=flags)
+    elif search_type == 'plane':
+      await general_query_execute(gear, plane_list, plane_info, message, gear, exact_match, match_cutoff=.4, flags=flags)
+    elif search_type == 'torp':
+      await general_query_execute(gear, torp_list, torp_info, gear, gear, exact_match, match_cutoff=.45, splitter='Torpedo', flags=flags)
+    elif search_type == 'aa':
+      await general_query_execute(gear, aa_list, aa_info, message, gear, exact_match, match_cutoff=.45, flags=flags)
+    else:
+      await ctx.send("Invalid type!!\n", file=discord.File('./idiot.png'))
+'''

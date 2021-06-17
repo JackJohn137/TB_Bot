@@ -1,0 +1,6 @@
+--2021-05-01 04:34:45--  https://media.discordapp.net/attachments/790542153088630797/837902789014323240/BONK.png?width=433
+Resolving media.discordapp.net (media.discordapp.net)... 162.159.129.232, 162.159.130.232, 162.159.128.232, ...
+Connecting to media.discordapp.net (media.discordapp.net)|162.159.129.232|:443... connected.
+HTTP request sent, awaiting response... 400 Bad Request
+2021-05-01 04:34:45 ERROR 400: Bad Request.
+
