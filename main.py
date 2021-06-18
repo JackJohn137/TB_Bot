@@ -279,12 +279,14 @@ async def on_message(message):
     return
 
 async def execute_help(message):
+  await message.channel.trigger_typing()
   title = "How can I help?"
   description =  "Please use one of the following commands:\n> `!stats <ship_name>`\n> `!skills <ship_name>`\n> `!aux <gear> <flags>`\n> `!gun <gear> <flags>`\n> `!plane <gear> <flags>`\n> `!torp <gear> <flags>`\n> `!aa <gear> <flags>`\n\nValid flags:\n> `-a`, `--any`\nExpands the search. Useful if you don't know the exact name of the equipment, or if your search 404s.\n\nI also support '/'commands. Please try one out by starting a message with '/', such as '/gear'."
   embed = make_embed(title, description, fields=None, image=None, thumbnail=query_thumbnail)
   await message.channel.send(embed=embed)
 
 async def execute_stats(message, msg):
+  await message.channel.trigger_typing()
   ship = msg.split("!stats ")[1]
   stats = get_stats(ship)
   if stats is None:
@@ -296,6 +298,7 @@ async def execute_stats(message, msg):
     await message.channel.send("".join(results))
 
 async def execute_skills(message, msg):
+  await message.channel.trigger_typing()
   ship = msg.split("!skills ")[1]
   skills = get_skills(ship)
   if skills is None:
@@ -310,6 +313,7 @@ async def execute_aux(message, parsed_contents):
   if parsed_contents.strip() == "":
     await message.channel.send("Please enter an equipment name to serach for.\n> !aux <name>")
     return
+  await message.channel.trigger_typing()
 
   print("Asked for aux gear")
   try:
@@ -324,6 +328,7 @@ async def execute_gun(message, parsed_contents, contents, exact_match=False, fla
   if parsed_contents.strip() == "":
     await message.channel.send("Please enter an gun to serach for.\n> !gun <name>")
     return
+  await message.channel.trigger_typing()
 
   print("Asked for gun")
   await general_query_execute(parsed_contents, gun_list, gun_info, message, contents, exact_match, match_cutoff=.6, flags=flags)
@@ -333,6 +338,7 @@ async def execute_plane(message, parsed_contents, contents, exact_match=False, f
     await message.channel.send("Please enter a plane to serach for.\n> !plane <name>")
     return
 
+  await message.channel.trigger_typing()
   print("Asked for plane")
   await general_query_execute(parsed_contents, plane_list, plane_info, message, contents, exact_match, match_cutoff=.4, flags=flags)
 
@@ -341,6 +347,7 @@ async def execute_torp(message, parsed_contents, contents, exact_match=False, fl
     await message.channel.send("Please enter a torpedo to serach for.\n> !torp <name>")
     return
 
+  await message.channel.trigger_typing()
   print("Asked for torp")
 
   await general_query_execute(parsed_contents, torp_list, torp_info, message, contents, exact_match, match_cutoff=.45, splitter='Torpedo', flags=flags)
@@ -350,6 +357,7 @@ async def execute_aa(message, parsed_contents, contents, exact_match=False, flag
     await message.channel.send("Please enter an aa gun to serach for.\n> !aa <name>")
     return
 
+  await message.channel.trigger_typing()
   print("Asked for aa gun")
   await general_query_execute(parsed_contents, aa_list, aa_info, message, contents, exact_match, match_cutoff=.45, flags=flags)
 
@@ -707,14 +715,19 @@ async def _gear(ctx: SlashContext,search_type, gear, flags=set()):
     await ctx.send("Please wait...")
 
     if search_type == 'aux':
+      await message.channel.trigger_typing()
       await execute_aux(message, parsed_contents)
     elif search_type == 'gun':
+      await message.channel.trigger_typing()
       await general_query_execute(parsed_contents, gun_list, gun_info, message, gear, exact_match, match_cutoff=.6, flags=flags)
     elif search_type == 'plane':
+      await message.channel.trigger_typing()
       await general_query_execute(parsed_contents, plane_list, plane_info, message, gear, exact_match, match_cutoff=.4, flags=flags)
     elif search_type == 'torp':
+      await message.channel.trigger_typing()
       await general_query_execute(parsed_contents, torp_list, torp_info, message, gear, exact_match, match_cutoff=.45, splitter='Torpedo', flags=flags)
     elif search_type == 'aa':
+      await message.channel.trigger_typing()
       await general_query_execute(parsed_contents, aa_list, aa_info, message, gear, exact_match, match_cutoff=.45, flags=flags)
     else:
       await ctx.send("Invalid type!!\n", file=discord.File('./idiot.png'))
